@@ -5,7 +5,8 @@
 // [X] add particle effects when collecting bread
 // [X] add snake 
 // [ ] refactor item collection
-// [ ] add toad 
+// [X] add toad 
+// [X] make snake frequency increase with score
 
 const SIZES = {
     WIDTH: 1024,
@@ -15,7 +16,23 @@ const SIZES = {
 const GRAVITY = 450;
 const JUMP_VELOCITY = -300;
 const ITEM_VELOCITY = -100;
-const BREAD_SPAWN_TIME = 2000;
+
+const BREAD_DELAY_MIN = 1500;
+const BREAD_DELAY_MAX = 3000;
+const SNAKE_DELAY_MIN = 5000;
+const SNAKE_DELAY_MAX = 10000;
+const TOAD_DELAY_MIN = 5000;
+const TOAD_DELAY_MAX = 10000;
+
+const SCORE_TEXT_X = 16;
+const SCORE_TEXT_Y = 16;
+const HIGH_SCORE_TEXT_X = 16;
+const HIGH_SCORE_TEXT_Y = 48;
+const FONT_SIZE = '32px';
+const FONT_COLOR = '#000';
+
+const SCORE_TEXT_PREFIX = 'Score: ';
+const HIGH_SCORE_TEXT_PREFIX = 'High Score: ';
 
 
 var config = {
@@ -40,39 +57,40 @@ var config = {
 };
 
 var game = new Phaser.Game(config);
+
 var score = 0;
 var scoreText;
 
+var highScore = 0;
+var highScoreText
+
 function preload() {
-    // Load assets here
     this.load.image('background', 'assets/background2.png');
     this.load.spritesheet('player', 'assets/yoko.png', { frameWidth: 88, frameHeight: 128 });
     this.load.image('bread', 'assets/bread.png');
     this.load.image('breadcrumb', 'assets/breadcrumb2.png');
-    // this.load.image('toad', 'assets/toad-icon.png');
-    this.load.image('snake', 'assets/snake2.png');
+    this.load.image('toad', 'assets/toad-icon.png');
+    this.load.image('toad-text', 'assets/toad-text.png');
+    this.load.image('snake', 'assets/snake.png');
 }
 
 function create() {
-    // Create game objects here
-    // Add the background image as a tile sprite
     this.background = this.add.tileSprite(SIZES.WIDTH/2, SIZES.HEIGHT/2, 1792, 1024, 'background');
 
-    // Add the player sprite
     this.player = this.physics.add.sprite(100, SIZES.HEIGHT/2, 'player');
 
-    // Set player properties
     this.player.setBounce(0.2);
     this.player.setCollideWorldBounds(true);
+    this.player.setScale(1.3); 
 
     // Create a group for the bread items
     this.breads = this.physics.add.group({
         allowGravity: false // Disable gravity
     });
 
-    // Create a new bread item every 2 seconds
+    // Create a new bread item every 1.5-3 seconds
     this.time.addEvent({
-        delay: BREAD_SPAWN_TIME,
+        delay: Phaser.Math.Between(BREAD_DELAY_MIN, BREAD_DELAY_MAX),
         callback: function() {
             var bread = this.breads.create(SIZES.HEIGHT, Phaser.Math.Between(SIZES.HEIGHT*0.1, SIZES.HEIGHT*0.9), 'bread');
             bread.setVelocityX(ITEM_VELOCITY); // Set the horizontal velocity
@@ -88,10 +106,27 @@ function create() {
 
     // Create a new snake item every 5-10 seconds
     this.time.addEvent({
-        delay: Phaser.Math.Between(5000, 10000),
+        delay: Math.max(Phaser.Math.Between(SNAKE_DELAY_MIN, SNAKE_DELAY_MAX) - score * 50, 300),
         callback: function() {
-            var snake = this.snakes.create(SIZES.HEIGHT, Phaser.Math.Between(SIZES.HEIGHT*0.1, SIZES.HEIGHT*0.9), 'snake');
+            var snake = this.snakes.create(SIZES.HEIGHT, Phaser.Math.Between(SIZES.HEIGHT*0.15, SIZES.HEIGHT*0.8), 'snake');
             snake.setVelocityX(ITEM_VELOCITY*3); // Set the horizontal velocity
+            snake.setScale(0.8);
+        },
+        callbackScope: this,
+        loop: true
+    });
+
+    // Create a group for the toad items
+    this.toads = this.physics.add.group({
+        allowGravity: false // Disable gravity
+    });
+
+    // Create a new toad item every 5-10 seconds
+    this.time.addEvent({
+        delay: Phaser.Math.Between(TOAD_DELAY_MIN, TOAD_DELAY_MAX),
+        callback: function() {
+            var toad = this.toads.create(SIZES.HEIGHT, Phaser.Math.Between(SIZES.HEIGHT*0.15, SIZES.HEIGHT*0.8), 'toad');
+            toad.setVelocityX(ITEM_VELOCITY*6); // Set the horizontal velocity
         },
         callbackScope: this,
         loop: true
@@ -113,15 +148,22 @@ function create() {
     
     // Detect collisions between the player and the bread items
     this.physics.add.overlap(this.player, this.breads, collectBread, null, this);
+    
+    // Detect collisions between the player and the toad items
+    this.physics.add.overlap(this.player, this.toads, collectToad, null, this);
 
     // Add a collision handler between the player and the snake items
     this.physics.add.collider(this.player, this.snakes, function(player, snake) {
         // Reset the game here
         this.scene.restart();
+
+        // Reset the current score
+        score = 0;
     }, null, this);
 
     // Display the score
-    scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+    scoreText = this.add.text(SCORE_TEXT_X, SCORE_TEXT_Y, SCORE_TEXT_PREFIX + '0', { fontSize: FONT_SIZE, fill: FONT_COLOR });
+    highScoreText = this.add.text(HIGH_SCORE_TEXT_X, HIGH_SCORE_TEXT_Y, HIGH_SCORE_TEXT_PREFIX + highScore, { fontSize: FONT_SIZE, fill: FONT_COLOR });
 }
 
 function update() {
@@ -135,16 +177,15 @@ function collectBread(player, bread) {
 
     makePlayerHappy(player, this)
 
-    // Increase and display the score
-    score += 1;
-    scoreText.setText('Score: ' + score);
+    addToScore(1);
     
     // Create a new particle emitter
     var emitter = this.add.particles(bread.x, bread.y, 'breadcrumb', {
         speed: 50,
         scale: { start: 0.3, end: 1, random: true },
         angle: { min: 0, max: 360 },
-        blendMode: 'NORMAL'
+        blendMode: 'NORMAL',
+        radial: true 
     });
 
     // Stop emitting particles after a short time
@@ -155,6 +196,44 @@ function collectBread(player, bread) {
         },
         callbackScope: this
     });
+}
+
+// Function to handle collecting a bread item
+function collectToad(player, toad) {
+    toad.disableBody(true, true);
+
+    makePlayerHappy(player, this)
+
+    addToScore(5);
+    
+    // Create a new particle emitter
+    var emitter = this.add.particles(toad.x, toad.y, 'toad-text', {
+        speed: 100,
+        scale: { start: 0.1, end: 0.4, random: true },
+        angle: { min: 0, max: 360 },
+        blendMode: 'NORMAL',
+        radial: true 
+    });
+
+    // Stop emitting particles after a short time
+    this.time.addEvent({
+        delay: 150,
+        callback: function() {
+            emitter.stop();
+        },
+        callbackScope: this
+    });
+}
+
+function addToScore(amount) {
+    score += amount;
+    scoreText.setText(SCORE_TEXT_PREFIX + score);
+
+    // Update and display the high score
+    if (score > highScore) {
+        highScore = score;
+        highScoreText = highScoreText.setText(HIGH_SCORE_TEXT_PREFIX + highScore);
+    }
 }
 
 function makePlayerHappy(player, scene) {

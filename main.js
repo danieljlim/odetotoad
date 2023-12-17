@@ -3,6 +3,7 @@
 // [X] scale to fit screen
 // [X] refactor constants
 // [X] add particle effects when collecting bread
+// [X] add snake 
 // [ ] refactor item collection
 // [ ] add toad 
 
@@ -13,6 +14,8 @@ const SIZES = {
 
 const GRAVITY = 450;
 const JUMP_VELOCITY = -300;
+const ITEM_VELOCITY = -100;
+const BREAD_SPAWN_TIME = 2000;
 
 
 var config = {
@@ -44,8 +47,10 @@ function preload() {
     // Load assets here
     this.load.image('background', 'assets/background2.png');
     this.load.spritesheet('player', 'assets/yoko.png', { frameWidth: 88, frameHeight: 128 });
-    this.load.spritesheet('bread', 'assets/bread.png', { frameWidth: 128, frameHeight: 88 });
-    this.load.image('breadcrumb', 'assets/breadcrumb.png');
+    this.load.image('bread', 'assets/bread.png');
+    this.load.image('breadcrumb', 'assets/breadcrumb2.png');
+    // this.load.image('toad', 'assets/toad-icon.png');
+    this.load.image('snake', 'assets/snake2.png');
 }
 
 function create() {
@@ -67,10 +72,26 @@ function create() {
 
     // Create a new bread item every 2 seconds
     this.time.addEvent({
-        delay: 2000,
+        delay: BREAD_SPAWN_TIME,
         callback: function() {
-            var bread = this.breads.create(1024, Phaser.Math.Between(100, 900), 'bread');
-            bread.setVelocityX(-100); // Set the horizontal velocity
+            var bread = this.breads.create(SIZES.HEIGHT, Phaser.Math.Between(SIZES.HEIGHT*0.1, SIZES.HEIGHT*0.9), 'bread');
+            bread.setVelocityX(ITEM_VELOCITY); // Set the horizontal velocity
+        },
+        callbackScope: this,
+        loop: true
+    });
+
+    // Create a group for the snake items
+    this.snakes = this.physics.add.group({
+        allowGravity: false // Disable gravity
+    });
+
+    // Create a new snake item every 5-10 seconds
+    this.time.addEvent({
+        delay: Phaser.Math.Between(5000, 10000),
+        callback: function() {
+            var snake = this.snakes.create(SIZES.HEIGHT, Phaser.Math.Between(SIZES.HEIGHT*0.1, SIZES.HEIGHT*0.9), 'snake');
+            snake.setVelocityX(ITEM_VELOCITY*3); // Set the horizontal velocity
         },
         callbackScope: this,
         loop: true
@@ -92,6 +113,12 @@ function create() {
     
     // Detect collisions between the player and the bread items
     this.physics.add.overlap(this.player, this.breads, collectBread, null, this);
+
+    // Add a collision handler between the player and the snake items
+    this.physics.add.collider(this.player, this.snakes, function(player, snake) {
+        // Reset the game here
+        this.scene.restart();
+    }, null, this);
 
     // Display the score
     scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
@@ -115,7 +142,7 @@ function collectBread(player, bread) {
     // Create a new particle emitter
     var emitter = this.add.particles(bread.x, bread.y, 'breadcrumb', {
         speed: 50,
-        scale: { start: 0.3, end: 0.6 },
+        scale: { start: 0.3, end: 1, random: true },
         angle: { min: 0, max: 360 },
         blendMode: 'NORMAL'
     });

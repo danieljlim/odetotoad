@@ -182,8 +182,9 @@ function collectBread(player, bread) {
     // Create a new particle emitter
     var emitter = this.add.particles(bread.x, bread.y, 'breadcrumb', {
         speed: 50,
-        scale: { start: 0.3, end: 1, random: true },
+        scale: { start: 0.3, end: 0.8, random: true },
         angle: { min: 0, max: 360 },
+        rotate: { min: 0, max: 360 },
         blendMode: 'NORMAL',
         radial: true 
     });

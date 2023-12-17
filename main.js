@@ -65,7 +65,7 @@ var highScore = 0;
 var highScoreText
 
 function preload() {
-    this.load.image('background', 'assets/background2.png');
+    this.load.image('background', 'assets/background.png');
     this.load.spritesheet('player', 'assets/yoko.png', { frameWidth: 88, frameHeight: 128 });
     this.load.image('bread', 'assets/bread.png');
     this.load.image('breadcrumb', 'assets/breadcrumb2.png');
